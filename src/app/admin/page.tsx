@@ -138,4 +138,4 @@ export default function Admin() {
             <strong>Note:</strong> Apify costs are estimated at $0.005 per scrape. Check actual usage in your Apify dashboard at https://console.apify.com/billing
           </p>
         </div>
-      </div
+      </div>
