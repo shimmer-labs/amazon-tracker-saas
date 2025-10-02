@@ -54,42 +54,47 @@ export default function Dashboard() {
   }
 
   async function loadProducts(userId: string) {
-    const { data: products } = await supabase
-      .from('tracked_products')
-      .select(`
-        *,
-        product_snapshots (
-          price,
-          currency,
-          rating,
-          review_count,
-          bsr_rank,
-          bsr_category,
-          in_stock,
-          buy_box_winner,
-          title,
-          scraped_at
-        )
-      `)
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-    
-    const productsWithSnapshots = products?.map(product => {
-      const snapshots = product.product_snapshots || []
-      const sortedSnapshots = snapshots.sort((a: any, b: any) => 
-        new Date(b.scraped_at).getTime() - new Date(a.scraped_at).getTime()
+  const { data: products, error } = await supabase
+    .from('tracked_products')
+    .select(`
+      *,
+      product_snapshots (
+        price,
+        currency,
+        rating,
+        review_count,
+        bsr_rank,
+        bsr_category,
+        in_stock,
+        buy_box_winner,
+        title,
+        scraped_at
       )
-      
-      return {
-        ...product,
-        latest_snapshot: sortedSnapshots[0] || null,
-        all_snapshots: sortedSnapshots
-      }
-    })
+    `)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+  
+  console.log('Load products error:', error)
+  console.log('Products data:', products)
+  
+  const productsWithSnapshots = products?.map(product => {
+    const snapshots = product.product_snapshots || []
+    console.log(`Product ${product.asin} has ${snapshots.length} snapshots`)
     
-    setProducts(productsWithSnapshots || [])
-    setLoading(false)
-  }
+    const sortedSnapshots = snapshots.sort((a: any, b: any) => 
+      new Date(b.scraped_at).getTime() - new Date(a.scraped_at).getTime()
+    )
+    
+    return {
+      ...product,
+      latest_snapshot: sortedSnapshots[0] || null,
+      all_snapshots: sortedSnapshots
+    }
+  })
+  
+  setProducts(productsWithSnapshots || [])
+  setLoading(false)
+}
 
 async function handleUpgrade(tier: 'pro' | 'business') {
   if (!user) return
