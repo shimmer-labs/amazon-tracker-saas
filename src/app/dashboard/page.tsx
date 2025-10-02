@@ -54,81 +54,100 @@ export default function Dashboard() {
   }
 
   async function loadProducts(userId: string) {
-  const { data: products, error } = await supabase
-    .from('tracked_products')
-    .select(`
-      *,
-      product_snapshots (
-        price,
-        currency,
-        rating,
-        review_count,
-        bsr_rank,
-        bsr_category,
-        in_stock,
-        buy_box_winner,
-        title,
-        scraped_at
+    const { data: products, error } = await supabase
+      .from('tracked_products')
+      .select(`
+        *,
+        product_snapshots (
+          price,
+          currency,
+          rating,
+          review_count,
+          bsr_rank,
+          bsr_category,
+          in_stock,
+          buy_box_winner,
+          title,
+          scraped_at
+        )
+      `)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+    
+    console.log('Load products error:', error)
+    console.log('Products data:', products)
+    
+    const productsWithSnapshots = products?.map(product => {
+      const snapshots = product.product_snapshots || []
+      console.log(`Product ${product.asin} has ${snapshots.length} snapshots`)
+      
+      const sortedSnapshots = snapshots.sort((a: any, b: any) => 
+        new Date(b.scraped_at).getTime() - new Date(a.scraped_at).getTime()
       )
-    `)
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-  
-  console.log('Load products error:', error)
-  console.log('Products data:', products)
-  
-  const productsWithSnapshots = products?.map(product => {
-    const snapshots = product.product_snapshots || []
-    console.log(`Product ${product.asin} has ${snapshots.length} snapshots`)
-    
-    const sortedSnapshots = snapshots.sort((a: any, b: any) => 
-      new Date(b.scraped_at).getTime() - new Date(a.scraped_at).getTime()
-    )
-    
-    return {
-      ...product,
-      latest_snapshot: sortedSnapshots[0] || null,
-      all_snapshots: sortedSnapshots
-    }
-  })
-  
-  setProducts(productsWithSnapshots || [])
-  setLoading(false)
-}
-
-async function handleUpgrade(tier: 'pro' | 'business') {
-  if (!user) return
-  
-  const priceId = tier === 'pro' 
-    ? process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_PRO 
-    : process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_BUSINESS
-  
-  console.log('PriceId:', priceId)
-  console.log('UserId:', user.id)
-  
-  if (!priceId) {
-    alert('Price ID not configured. Check environment variables.')
-    return
-  }
-  
-  const response = await fetch('/api/create-checkout-session', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ 
-      priceId, 
-      userId: user.id 
+      
+      return {
+        ...product,
+        latest_snapshot: sortedSnapshots[0] || null,
+        all_snapshots: sortedSnapshots
+      }
     })
-  })
-  
-  const result = await response.json()
-  console.log('Response:', result)
-  
-  if (result.url) {
-    window.location.href = result.url
-  } else {
-    alert('Error: ' + (result.error || 'Unknown error'))
+    
+    setProducts(productsWithSnapshots || [])
+    setLoading(false)
   }
-}
+
+  async function handleDeleteProduct(productId: string, productAsin: string) {
+    if (!confirm(`Are you sure you want to stop tracking ${productAsin}? All historical data will be deleted.`)) {
+      return
+    }
+    
+    const { error } = await supabase
+      .from('tracked_products')
+      .delete()
+      .eq('id', productId)
+    
+    if (error) {
+      alert('Error deleting product: ' + error.message)
+    } else {
+      if (user) {
+        loadProducts(user.id)
+      }
+    }
+  }
+
+  async function handleUpgrade(tier: 'pro' | 'business') {
+    if (!user) return
+    
+    const priceId = tier === 'pro' 
+      ? process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_PRO 
+      : process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_BUSINESS
+    
+    console.log('PriceId:', priceId)
+    console.log('UserId:', user.id)
+    
+    if (!priceId) {
+      alert('Price ID not configured. Check environment variables.')
+      return
+    }
+    
+    const response = await fetch('/api/create-checkout-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        priceId, 
+        userId: user.id 
+      })
+    })
+    
+    const result = await response.json()
+    console.log('Response:', result)
+    
+    if (result.url) {
+      window.location.href = result.url
+    } else {
+      alert('Error: ' + (result.error || 'Unknown error'))
+    }
+  }
 
   async function handleScrapeNow() {
     if (!user) return
@@ -286,6 +305,15 @@ async function handleUpgrade(tier: 'pro' | 'business') {
                         <p className="text-sm text-gray-500 mt-2">{snapshot.title.substring(0, 80)}...</p>
                       )}
                     </div>
+                    <button
+                      onClick={() => handleDeleteProduct(product.id, product.asin)}
+                      className="text-gray-400 hover:text-red-400 transition ml-4"
+                      title="Delete product"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
                   </div>
                   
                   {snapshot ? (
