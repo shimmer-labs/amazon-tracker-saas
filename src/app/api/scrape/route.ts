@@ -58,6 +58,7 @@ export async function GET(request: Request) {
           bsr_category: item.bsr?.category,
           in_stock: item.inStock,
           buy_box_winner: item.buyBoxWinner,
+          image_url: item.imageUrl,
           scraped_at: item.scrapedAt,
         })
       }
