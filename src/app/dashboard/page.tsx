@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import PriceChart from '@/components/PriceChart'
+import toast from 'react-hot-toast'
 
 const TIER_LIMITS = {
   free: 3,
@@ -22,6 +23,7 @@ export default function Dashboard() {
   const [profile, setProfile] = useState<any>(null)
   const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [scraping, setScraping] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
   const [newAsin, setNewAsin] = useState('')
   const [newNickname, setNewNickname] = useState('')
@@ -68,18 +70,19 @@ export default function Dashboard() {
           in_stock,
           buy_box_winner,
           title,
+          image_url,
           scraped_at
         )
       `)
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
     
-    console.log('Load products error:', error)
-    console.log('Products data:', products)
+    if (error) {
+      console.error('Load products error:', error)
+    }
     
     const productsWithSnapshots = products?.map(product => {
       const snapshots = product.product_snapshots || []
-      console.log(`Product ${product.asin} has ${snapshots.length} snapshots`)
       
       const sortedSnapshots = snapshots.sort((a: any, b: any) => 
         new Date(b.scraped_at).getTime() - new Date(a.scraped_at).getTime()
@@ -107,8 +110,9 @@ export default function Dashboard() {
       .eq('id', productId)
     
     if (error) {
-      alert('Error deleting product: ' + error.message)
+      toast.error('Failed to delete product')
     } else {
+      toast.success('Product removed')
       if (user) {
         loadProducts(user.id)
       }
@@ -122,11 +126,8 @@ export default function Dashboard() {
       ? process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_PRO 
       : process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_BUSINESS
     
-    console.log('PriceId:', priceId)
-    console.log('UserId:', user.id)
-    
     if (!priceId) {
-      alert('Price ID not configured. Check environment variables.')
+      toast.error('Configuration error. Contact support.')
       return
     }
     
@@ -140,29 +141,32 @@ export default function Dashboard() {
     })
     
     const result = await response.json()
-    console.log('Response:', result)
     
     if (result.url) {
       window.location.href = result.url
     } else {
-      alert('Error: ' + (result.error || 'Unknown error'))
+      toast.error(result.error || 'Failed to start checkout')
     }
   }
 
   async function handleScrapeNow() {
     if (!user) return
     
-    setLoading(true)
+    setScraping(true)
     
     const response = await fetch(`/api/scrape?userId=${user.id}`, {
       method: 'GET',
     })
     
     const result = await response.json()
-    console.log('Scrape result:', result)
     
-    alert(result.message || result.error || 'Scrape complete!')
-    setLoading(false)
+    if (result.message) {
+      toast.success(result.message)
+    } else if (result.error) {
+      toast.error(result.error)
+    }
+    
+    setScraping(false)
     loadProducts(user.id)
   }
 
@@ -173,7 +177,7 @@ export default function Dashboard() {
     const limit = TIER_LIMITS[tier as keyof typeof TIER_LIMITS]
     
     if (products.length >= limit) {
-      alert(`You've reached your ${tier} tier limit of ${limit} products. Upgrade to add more.`)
+      toast.error(`You've reached your ${tier} tier limit of ${limit} products`)
       return
     }
     
@@ -192,16 +196,17 @@ export default function Dashboard() {
       
       if (error) {
         console.error('Insert error:', error)
-        alert('Error adding product: ' + error.message)
+        toast.error('Failed to add product')
       } else {
         setShowAddModal(false)
         setNewAsin('')
         setNewNickname('')
+        toast.success('Product added!')
         await loadProducts(user.id)
       }
     } catch (err: any) {
       console.error('Caught error:', err)
-      alert('Error: ' + err.message)
+      toast.error('Failed to add product')
     }
     
     setAdding(false)
@@ -213,7 +218,14 @@ export default function Dashboard() {
   }
 
   if (loading) {
-    return <div className="min-h-screen bg-gray-900 flex items-center justify-center text-white">Loading...</div>
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center text-white">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p>Loading...</p>
+        </div>
+      </div>
+    )
   }
 
   const tier = profile?.subscription_tier || 'free'
@@ -226,12 +238,17 @@ export default function Dashboard() {
       <nav className="bg-gray-800 border-b border-gray-700">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
           <h1 className="text-xl font-bold">Amazon Tracker</h1>
-          <button
-            onClick={handleSignOut}
-            className="text-sm text-gray-400 hover:text-white"
-          >
-            Sign Out
-          </button>
+          <div className="flex items-center gap-4">
+            <a href="/settings" className="text-sm text-gray-400 hover:text-white">
+              Settings
+            </a>
+            <button
+              onClick={handleSignOut}
+              className="text-sm text-gray-400 hover:text-white"
+            >
+              Sign Out
+            </button>
+          </div>
         </div>
       </nav>
 
@@ -247,9 +264,13 @@ export default function Dashboard() {
           <div className="flex gap-2">
             <button 
               onClick={handleScrapeNow}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+              disabled={scraping}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
             >
-              Scrape Now
+              {scraping && (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              )}
+              {scraping ? 'Scraping...' : 'Scrape Now'}
             </button>
             <button 
               onClick={() => setShowAddModal(true)}
@@ -292,28 +313,37 @@ export default function Dashboard() {
               
               return (
                 <div key={product.id} className="bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-700">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className="font-medium text-xl">{product.asin}</p>
-                        <span className="text-xs bg-blue-900 text-blue-300 px-2 py-1 rounded">
-                          {product.marketplace}
-                        </span>
+                  <div className="flex gap-4 mb-4">
+                    {snapshot?.image_url && (
+                      <img 
+                        src={snapshot.image_url} 
+                        alt={snapshot.title || product.asin}
+                        className="w-24 h-24 object-contain bg-white rounded"
+                      />
+                    )}
+                    <div className="flex-1 flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="font-medium text-xl">{product.asin}</p>
+                          <span className="text-xs bg-blue-900 text-blue-300 px-2 py-1 rounded">
+                            {product.marketplace}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-400">{product.nickname || 'No nickname'}</p>
+                        {snapshot?.title && (
+                          <p className="text-sm text-gray-500 mt-2">{snapshot.title.substring(0, 80)}...</p>
+                        )}
                       </div>
-                      <p className="text-sm text-gray-400">{product.nickname || 'No nickname'}</p>
-                      {snapshot?.title && (
-                        <p className="text-sm text-gray-500 mt-2">{snapshot.title.substring(0, 80)}...</p>
-                      )}
+                      <button
+                        onClick={() => handleDeleteProduct(product.id, product.asin)}
+                        className="text-gray-400 hover:text-red-400 transition ml-4"
+                        title="Delete product"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
                     </div>
-                    <button
-                      onClick={() => handleDeleteProduct(product.id, product.asin)}
-                      className="text-gray-400 hover:text-red-400 transition ml-4"
-                      title="Delete product"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
                   </div>
                   
                   {snapshot ? (
@@ -357,9 +387,11 @@ export default function Dashboard() {
                         )}
                         
                         <div className="col-span-2">
-                          <p className="text-xs text-gray-500">Last updated</p>
+                          <p className="text-xs text-gray-500">Last scraped</p>
                           <p className="text-xs text-gray-400">
-                            {new Date(snapshot.scraped_at).toLocaleString()}
+                            {new Date(snapshot.scraped_at).toLocaleString()} · {
+                              Math.round((Date.now() - new Date(snapshot.scraped_at).getTime()) / (1000 * 60 * 60))
+                            }h ago
                           </p>
                         </div>
                       </div>
@@ -372,8 +404,13 @@ export default function Dashboard() {
                       )}
                     </>
                   ) : (
-                    <div className="pt-4 border-t border-gray-700 text-center text-gray-500 text-sm">
-                      No data yet - automatic scraping runs {frequency.toLowerCase()}
+                    <div className="pt-4 border-t border-gray-700">
+                      <div className="bg-gray-900/50 rounded p-4 text-center">
+                        <p className="text-gray-400 text-sm mb-2">No data available yet</p>
+                        <p className="text-xs text-gray-500">
+                          This product will be scraped during the next {frequency.toLowerCase()} run, or click "Scrape Now" above
+                        </p>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -384,7 +421,7 @@ export default function Dashboard() {
       </div>
 
       {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-gray-800 rounded-lg shadow-xl p-6 max-w-md w-full">
             <h3 className="text-xl font-bold mb-4">Add Product to Track</h3>
             
