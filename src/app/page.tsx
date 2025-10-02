@@ -104,6 +104,17 @@ export default function Home() {
           </div>
         </div>
       </main>
+      <footer className="mt-20 border-t border-gray-800 pt-8 pb-12 text-center text-gray-400 text-sm">
+          <p>&copy; 2025 Shimmer Labs. All rights reserved.</p>
+          <div className="mt-4 space-x-4">
+            <a href="/terms" className="hover:text-white transition">Terms of Service</a>
+            <span>•</span>
+            <a href="/privacy" className="hover:text-white transition">Privacy Policy</a>
+          </div>
+          <p className="mt-4 text-xs">
+            This is an unofficial third-party tool. Not affiliated with Amazon.com.
+          </p>
+        </footer>
     </div>
   )
 }
