@@ -1,10 +1,16 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 import { ApifyClient } from 'apify-client'
+import { sendPriceDropAlert } from '@/lib/email'
 
 const apifyClient = new ApifyClient({
   token: process.env.APIFY_API_TOKEN,
 })
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 export async function GET(request: Request) {
   try {
@@ -15,12 +21,11 @@ export async function GET(request: Request) {
 
     console.log('=== DAILY CRON START ===')
     
-    // Get products from free, pro, and business users
     const { data: products } = await supabase
       .from('tracked_products')
       .select(`
         *,
-        profiles!inner(email, subscription_tier)
+        profiles!inner(email, subscription_tier, email_alerts_enabled, price_drop_threshold)
       `)
       .in('profiles.subscription_tier', ['free', 'pro', 'business'])
     
@@ -54,6 +59,15 @@ export async function GET(request: Request) {
         const product = marketplaceProducts.find(p => p.asin === item.asin)
         
         if (product) {
+          // Get previous snapshot before inserting new one
+          const { data: previousSnapshots } = await supabase
+            .from('product_snapshots')
+            .select('price')
+            .eq('tracked_product_id', product.id)
+            .order('scraped_at', { ascending: false })
+            .limit(1)
+          
+          // Insert new snapshot
           await supabase.from('product_snapshots').insert({
             tracked_product_id: product.id,
             asin: item.asin,
@@ -69,6 +83,50 @@ export async function GET(request: Request) {
             scraped_at: item.scrapedAt,
           })
           totalScraped++
+          
+          // Check for price drop
+          if (previousSnapshots && previousSnapshots.length > 0) {
+            const oldPrice = previousSnapshots[0].price
+            const newPrice = item.price
+            
+            if (oldPrice && newPrice && newPrice < oldPrice) {
+              const percentageChange = ((oldPrice - newPrice) / oldPrice) * 100
+              
+              const profile = product.profiles
+              
+              if (profile?.email_alerts_enabled && percentageChange >= (profile.price_drop_threshold || 5)) {
+                // Check if we already sent an alert recently
+                const { data: recentAlert } = await supabase
+                  .from('price_alerts')
+                  .select('id')
+                  .eq('tracked_product_id', product.id)
+                  .eq('alert_type', 'price_drop')
+                  .gte('sent_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+                  .maybeSingle()
+                
+                if (!recentAlert) {
+                  console.log(`Sending price drop alert for ${item.asin}: ${oldPrice} -> ${newPrice}`)
+                  
+                  await sendPriceDropAlert({
+                    userEmail: profile.email,
+                    productAsin: item.asin,
+                    productTitle: item.title || 'Unknown Product',
+                    oldPrice,
+                    newPrice,
+                    percentageChange,
+                    marketplace: product.marketplace
+                  })
+                  
+                  await supabase.from('price_alerts').insert({
+                    tracked_product_id: product.id,
+                    alert_type: 'price_drop',
+                    old_value: oldPrice,
+                    new_value: newPrice
+                  })
+                }
+              }
+            }
+          }
         }
       }
     }
