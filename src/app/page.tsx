@@ -2,25 +2,24 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gray-900">
       <nav className="bg-gray-800 border-b border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-xl font-bold text-white">Amazon Tracker</h1>
-          <div className="flex gap-4">
-            <a 
-              href="/login" 
-              className="text-gray-300 hover:text-white transition"
-            >
-              Sign In
-            </a>
-            <a 
-              href="/login" 
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
-            >
-              Start Free Trial
-            </a>
-          </div>
-        </div>
-      </nav>
-
+  <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+    <h1 className="text-xl font-bold text-white">Amazon Tracker</h1>
+    <div className="flex gap-4 items-center">
+      <a 
+        href="/login" 
+        className="text-gray-300 hover:text-white transition"
+      >
+        Sign In
+      </a>
+      <a 
+        href="/login" 
+        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+      >
+        Start Free Trial
+      </a>
+    </div>
+  </div>
+</nav>
       <main className="max-w-7xl mx-auto px-4 py-20">
         <div className="text-center mb-16">
           <h1 className="text-5xl font-bold text-white mb-6">
