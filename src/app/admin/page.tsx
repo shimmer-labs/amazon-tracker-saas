@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
-const ADMIN_EMAIL = 'shimmerlogan+2@gmail.com' // Your admin email
+const ADMIN_EMAIL = 'shimmerlogan+2@gmail.com'
 
 export default function Admin() {
   const [stats, setStats] = useState<any>(null)
@@ -29,7 +29,6 @@ export default function Admin() {
   }
 
   async function loadStats() {
-    // ... rest of your existing loadStats code
     const { data: profiles } = await supabase
       .from('profiles')
       .select('subscription_tier')
@@ -76,7 +75,6 @@ export default function Admin() {
   }
 
   return (
-    // ... rest of your existing JSX
     <div className="min-h-screen bg-gray-900 text-white p-8">
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-8">
@@ -139,3 +137,6 @@ export default function Admin() {
           </p>
         </div>
       </div>
+    </div>
+  )
+}
